@@ -1,0 +1,2131 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>СРО ТЕРМ v3 | ТЕРМИНАЛ КОНТРОЛЯ СТРОИТЕЛЬСТВА</title>
+    
+    <style>
+        :root {
+            /* Светлая тема */
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --surface-light: #f1f5f9;
+            --border: #e2e8f0;
+            --text-main: #334155;
+            --text-dim: #64748b;
+            --text-bright: #0f172a;
+            
+            /* Terminal Status Colors - минималистичные */
+            --terminal-ok: #10b981;
+            --terminal-warning: #f59e0b;
+            --terminal-error: #ef4444;
+            --terminal-info: #64748b; /* Серый вместо синего */
+            
+            /* Financial Colors */
+            --green: #10b981;
+            --green-dark: #047857;
+            --red: #ef4444;
+            --red-dark: #b91c1c;
+            --yellow: #f59e0b;
+            --orange: #f97316;
+            
+            /* Chart Colors */
+            --chart-line: #10b981;
+            --chart-fill: rgba(16, 185, 129, 0.1);
+            --chart-limit: rgba(239, 68, 68, 0.2);
+            
+            /* Top bar colors */
+            --top-bar-bg: #0f172a;
+            --top-bar-text: #ffffff;
+            --top-bar-border: #1e293b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            font-size: 11px;
+            line-height: 1.3;
+            letter-spacing: -0.3px;
+        }
+
+        /* MAIN GRID */
+        .app-grid {
+            display: grid;
+            grid-template-rows: 40px 1fr 180px;
+            grid-template-columns: 250px 1fr;
+            height: 100vh;
+            gap: 1px;
+            background: var(--border);
+        }
+
+        /* TOP BAR - Контрастная */
+        .top-bar {
+            grid-column: 1 / -1;
+            background: var(--top-bar-bg);
+            border-bottom: 1px solid var(--top-bar-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            color: var(--top-bar-text);
+        }
+
+        .terminal-prompt {
+            color: var(--terminal-ok);
+            font-weight: 600;
+        }
+
+        .live-indicator {
+            width: 8px;
+            height: 8px;
+            background: var(--terminal-ok);
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* AGENT SIDEBAR */
+        .agent-sidebar {
+            grid-row: 2 / 4;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            width: 250px;
+        }
+
+        .agent-header {
+            padding: 8px 12px;
+            background: var(--top-bar-bg);
+            color: #e2e8f0;
+            font-weight: 600;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            height: 32px;
+            border-bottom: 1px solid var(--top-bar-border);
+        }
+
+        .agent-avatar {
+            width: 18px;
+            height: 18px;
+            background: var(--terminal-info);
+            color: white;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 9px;
+        }
+
+        .agent-messages {
+            flex: 1;
+            padding: 8px;
+            overflow-y: auto;
+            min-height: 120px;
+        }
+
+        .agent-message {
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 8px;
+            margin-bottom: 6px;
+            font-size: 9px;
+            animation: slideIn 0.3s ease-out;
+            position: relative;
+            overflow: hidden;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(-10px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .agent-message.system {
+            border-left: 3px solid var(--terminal-warning);
+        }
+
+        .agent-message.critical {
+            border-left: 3px solid var(--terminal-error);
+        }
+
+        .agent-message.info {
+            border-left: 3px solid var(--terminal-ok);
+        }
+
+        .agent-message.updating::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, var(--terminal-ok), var(--terminal-warning), var(--terminal-ok));
+            animation: progressBar 4s linear infinite;
+        }
+
+        @keyframes progressBar {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .agent-actions {
+            padding: 8px;
+            border-top: 1px solid var(--border);
+            min-height: 100px;
+        }
+
+        .agent-action-btn {
+            width: 100%;
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 6px 8px;
+            border-radius: 3px;
+            font-size: 9px;
+            cursor: pointer;
+            margin-bottom: 4px;
+            transition: all 0.2s;
+            text-align: left;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .agent-action-btn:hover {
+            background: var(--surface);
+            border-color: var(--terminal-info);
+        }
+
+        .agent-action-btn::before {
+            content: "$ ";
+            color: var(--terminal-ok);
+        }
+
+        .agent-action-btn.executing::after {
+            content: ' ▸';
+            color: var(--terminal-ok);
+            animation: blink 1s infinite;
+        }
+
+        /* MAIN AREA */
+        .main-area {
+            grid-row: 2;
+            background: var(--surface);
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            overflow: hidden;
+        }
+        
+        .tabs-container {
+            overflow-y: auto;
+            position: relative;
+            min-height: 0;
+        }
+        
+        .tabs-container::-webkit-scrollbar {
+            width: 2px;
+        }
+        
+        .tabs-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .tabs-container::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.3);
+            border-radius: 1px;
+        }
+        
+        .tabs-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.5);
+        }
+        
+        .terminal-wrapper {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .table-tabs {
+            display: flex;
+            background: var(--top-bar-bg);
+            border-bottom: 1px solid var(--top-bar-border);
+        }
+
+        .table-tab {
+            padding: 8px 16px;
+            font-size: 10px;
+            cursor: pointer;
+            border-right: 1px solid var(--top-bar-border);
+            color: #94a3b8;
+            transition: all 0.2s;
+        }
+
+        .table-tab:hover {
+            background: #1e293b;
+            color: #cbd5e1;
+        }
+
+        .table-tab.active {
+            background: #1e293b;
+            color: #f1f5f9;
+            border-bottom: 2px solid var(--terminal-ok);
+            font-weight: 600;
+        }
+
+        .table-container {
+            flex: 1;
+            overflow: auto;
+        }
+
+        /* TAB CONTENT */
+        .tab-content {
+            display: none;
+            padding: 16px;
+            overflow-y: auto;
+        }
+        
+        .tab-content::-webkit-scrollbar {
+            width: 2px;
+        }
+        
+        .tab-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .tab-content::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.3);
+            border-radius: 1px;
+        }
+        
+        .tab-content::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.5);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* DYNAMIC DATA HIGHLIGHTS */
+        .dynamic-value {
+            position: relative;
+            padding: 2px 4px;
+            border-radius: 2px;
+            animation: highlightUpdate 4s ease-in-out infinite;
+        }
+
+        @keyframes highlightUpdate {
+            0%, 100% { background: transparent; }
+            10%, 30% { background: rgba(16, 185, 129, 0.1); }
+        }
+
+        .dynamic-number {
+            font-weight: 600;
+            position: relative;
+            display: inline-block;
+            min-width: 40px;
+            text-align: right;
+        }
+
+        .dynamic-number.updating::after {
+            content: '↻';
+            position: absolute;
+            right: -12px;
+            top: 0;
+            font-size: 8px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* TABLE */
+        .dense-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+        }
+
+        .dense-table th {
+            position: sticky;
+            top: 0;
+            background: var(--surface-light);
+            color: var(--text-dim);
+            font-weight: 600;
+            text-transform: uppercase;
+            padding: 8px 6px;
+            text-align: right;
+            border-bottom: 2px solid var(--border);
+            font-size: 9px;
+            letter-spacing: 0.5px;
+        }
+
+        .dense-table th:first-child {
+            text-align: center;
+            width: 40px;
+        }
+
+        .dense-table th:nth-child(2),
+        .dense-table th:nth-child(3) {
+            text-align: left;
+        }
+
+        .dense-table td {
+            padding: 6px 6px;
+            border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+            text-align: right;
+            color: var(--text-main);
+            transition: background 0.2s;
+        }
+
+        .dense-table td:nth-child(2),
+        .dense-table td:nth-child(3) {
+            text-align: left;
+        }
+
+        .dense-table tr:hover td {
+            background: rgba(0, 0, 0, 0.02);
+        }
+
+        .dense-table tr.selected td {
+            background: rgba(100, 116, 139, 0.08);
+        }
+
+        /* STATUS INDICATORS */
+        .status-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-right: 4px;
+            animation: pulseDot 4s infinite;
+        }
+
+        @keyframes pulseDot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status-ok { background: var(--terminal-ok); }
+        .status-warning { background: var(--terminal-warning); }
+        .status-critical { background: var(--terminal-error); }
+
+        /* BADGES */
+        .badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 8px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            animation: badgePulse 4s infinite;
+        }
+
+        @keyframes badgePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--terminal-ok);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--terminal-warning);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        .badge-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--terminal-error);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        /* INPUTS */
+        .term-input {
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            color: var(--text-bright);
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            min-width: 60px;
+            text-align: right;
+        }
+
+        .term-input:focus {
+            outline: none;
+            border-color: var(--terminal-info);
+            box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.1);
+        }
+
+        /* ANALYSIS PANEL */
+        .analysis-panel {
+            grid-row: 3;
+            grid-column: 2;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .controls-area {
+            padding: 16px;
+            border-right: 1px solid var(--border);
+        }
+
+        .chart-area {
+            padding: 16px;
+            position: relative;
+        }
+
+        /* CHARTS */
+        .chart-container {
+            height: 100%;
+            position: relative;
+            min-height: 200px;
+        }
+
+        /* REAL-TIME TERMINAL */
+        .live-terminal {
+            height: 120px;
+            overflow-y: auto;
+            background: rgba(241, 245, 249, 0.5);
+            border: 1px solid var(--border);
+            border-radius: 0 0 4px 4px;
+            padding: 8px;
+            font-size: 10px;
+            line-height: 1.4;
+            margin: 0 16px 8px;
+        }
+        
+        .live-terminal::-webkit-scrollbar {
+            width: 2px;
+        }
+        
+        .live-terminal::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .live-terminal::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.3);
+            border-radius: 1px;
+        }
+        
+        .live-terminal::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.5);
+        }
+        
+        .terminal-header {
+            background: var(--surface-light);
+            color: var(--text-dim);
+            font-weight: 600;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 6px 10px;
+            margin: 0 16px 0;
+            border: 1px solid var(--border);
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+        }
+
+        .terminal-line {
+            margin-bottom: 2px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .term-time {
+            color: var(--text-dim);
+            margin-right: 8px;
+        }
+
+        /* BUTTONS */
+        .btn {
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .btn:hover {
+            background: var(--surface);
+            border-color: var(--terminal-info);
+        }
+
+        .btn-primary {
+            background: var(--terminal-info);
+            color: white;
+            border-color: var(--terminal-info);
+        }
+
+        .btn-primary:hover {
+            background: #475569;
+        }
+
+        /* PROGRESS BARS */
+        .progress {
+            height: 4px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 4px 0;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            transition: width 0.3s ease;
+            animation: progressAnimation 4s ease-in-out infinite;
+        }
+
+        @keyframes progressAnimation {
+            0%, 100% { width: var(--progress-width); }
+            50% { width: calc(var(--progress-width) + 2%); }
+        }
+
+        /* TERMINAL VIEW FOR TABS */
+        .terminal-view {
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 12px;
+            height: calc(100% - 40px);
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            line-height: 1.4;
+        }
+
+        .terminal-line {
+            margin-bottom: 2px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .terminal-prefix {
+            color: var(--terminal-ok);
+        }
+
+        .terminal-command {
+            color: var(--text-bright);
+        }
+
+        .terminal-output {
+            color: var(--text-dim);
+            margin-left: 20px;
+        }
+
+        .terminal-output.highlight {
+            color: var(--text-bright);
+            background: rgba(16, 185, 129, 0.1);
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.3);
+            border-radius: 2px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.5);
+        }
+
+        /* UTILITY CLASSES */
+        .text-success { color: var(--terminal-ok); }
+        .text-warning { color: var(--terminal-warning); }
+        .text-error { color: var(--terminal-error); }
+        .text-info { color: var(--terminal-info); }
+        .text-muted { color: var(--text-dim); }
+
+        .font-bold { font-weight: 600; }
+        .uppercase { text-transform: uppercase; }
+        .monospace { font-family: 'JetBrains Mono', monospace; }
+
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-2 { gap: 8px; }
+        .gap-4 { gap: 16px; }
+        .hidden { display: none; }
+
+        .w-full { width: 100%; }
+        .mb-2 { margin-bottom: 8px; }
+        .mb-4 { margin-bottom: 16px; }
+        .mt-3 { margin-top: 12px; }
+        .p-2 { padding: 8px; }
+        .p-3 { padding: 12px; }
+        .absolute { position: absolute; }
+        .top-2 { top: 8px; }
+        .left-4 { left: 16px; }
+
+        /* ANIMATIONS */
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .blink {
+            animation: blink 1s infinite;
+        }
+        
+        /* ===== MOBILE ===== */
+        @media (max-width: 768px) {
+            
+            body {
+                overflow-y: auto;
+                height: auto;
+            }
+            
+            /* КНОПКА АГЕНТА - СЛЕВА, ПОД ВКЛАДКАМИ */
+            body::after {
+                content: "👤 АГЕНТ";
+                position: fixed;
+                left: 8px;
+                top: 90px;
+                padding: 8px 12px;
+                background: var(--terminal-ok);
+                color: white;
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: 700;
+                z-index: 999;
+                cursor: pointer;
+                box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+                border: 2px solid white;
+            }
+            
+            /* GRID БЕЗ АГЕНТА */
+            .app-grid {
+                display: block;
+                height: auto;
+            }
+            
+            .top-bar {
+                position: relative;
+            }
+            
+            .main-area {
+                position: relative;
+                height: auto;
+                overflow: visible;
+            }
+            
+            /* ТАБЛИЦА ПЛАТЕЖЕЙ - 12 СТРОК */
+            .tabs-container {
+                max-height: 240px;
+                overflow-y: auto;
+            }
+            
+            /* Скроллбар для таблицы на мобилке */
+            .tabs-container::-webkit-scrollbar {
+                width: 2px;
+            }
+            
+            .tabs-container::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            
+            .tabs-container::-webkit-scrollbar-thumb {
+                background: rgba(100, 116, 139, 0.3);
+                border-radius: 1px;
+            }
+            
+            .tabs-container::-webkit-scrollbar-thumb:hover {
+                background: rgba(100, 116, 139, 0.5);
+            }
+            
+            /* ТЕРМИНАЛ - 12 СТРОК */
+            .live-terminal {
+                height: 160px;
+                font-size: 9px;
+                margin: 4px;
+                line-height: 1.5;
+                overflow-y: auto;
+            }
+            
+            .live-terminal::-webkit-scrollbar {
+                width: 2px;
+            }
+            
+            .live-terminal::-webkit-scrollbar-thumb {
+                background: rgba(100, 116, 139, 0.3);
+                border-radius: 1px;
+            }
+            
+            .live-terminal::-webkit-scrollbar-thumb:hover {
+                background: rgba(100, 116, 139, 0.5);
+            }
+            
+            .terminal-header {
+                font-size: 8px;
+                padding: 4px;
+            }
+            
+            /* АГЕНТ ВСПЛЫВАЮЩИЙ */
+            .agent-sidebar {
+                display: block;
+                position: fixed;
+                left: -100%;
+                top: 0;
+                width: 80%;
+                max-width: 300px;
+                height: 100vh;
+                z-index: 1000;
+                transition: left 0.3s ease;
+                box-shadow: 2px 0 20px rgba(0,0,0,0.3);
+            }
+            
+            .agent-sidebar.mobile-open {
+                left: 0;
+            }
+            
+            /* Затемнение фона */
+            body::before {
+                content: "";
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+            
+            body.agent-open::before {
+                display: block;
+            }
+            
+            /* ХЕДЕР */
+            .top-bar {
+                font-size: 7px;
+                padding: 4px;
+                flex-wrap: wrap;
+            }
+            
+            .top-bar input {
+                width: 30px !important;
+                font-size: 8px;
+            }
+            
+            /* ВКЛАДКИ */
+            .table-tab {
+                font-size: 9px;
+                padding: 6px 8px;
+            }
+            
+            /* ТАБЛИЦА */
+            .tab-content {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .dense-table {
+                font-size: 7px;
+                min-width: 100%;
+                white-space: nowrap;
+            }
+            
+            .dense-table th,
+            .dense-table td {
+                padding: 2px;
+            }
+            
+            /* ПРЯЧУ КОЛОНКИ только в ОЧЕРЕДЬ_ПЛАТЕЖЕЙ */
+            #payment-content .dense-table th:nth-child(1),
+            #payment-content .dense-table td:nth-child(1),
+            #payment-content .dense-table th:nth-child(8),
+            #payment-content .dense-table td:nth-child(8) {
+                display: none;
+            }
+            
+            /* ТЕРМИНАЛ */
+            .terminal-header {
+                font-size: 7px;
+                padding: 4px;
+                margin: 0 4px;
+            }
+            
+            /* НИЖНЯЯ ПАНЕЛЬ - КОМПАКТНО */
+            .analysis-panel {
+                font-size: 7px;
+                padding: 4px;
+                grid-template-columns: 1fr;
+            }
+            
+            .controls-area {
+                padding: 4px;
+            }
+            
+            .controls-area > div {
+                margin-bottom: 4px;
+            }
+            
+            .controls-area input {
+                width: 35px !important;
+                font-size: 7px;
+                padding: 2px;
+            }
+            
+            .controls-area label,
+            .controls-area .text-muted {
+                font-size: 7px;
+            }
+            
+            /* ГРАФИК КОМПАКТНЫЙ */
+            .chart-container {
+                height: 60px;
+            }
+            
+            #forecast-result {
+                font-size: 7px;
+                padding: 4px;
+                line-height: 1.3;
+            }
+            
+            /* Заголовки */
+            .analysis-panel .uppercase {
+                font-size: 8px;
+                margin-bottom: 4px;
+            }
+        }
+    </style>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-grid">
+        
+        <!-- TOP BAR -->
+        <header class="top-bar">
+            <div class="flex items-center gap-4">
+                <div class="flex items-center">
+                    <div class="live-indicator"></div>
+                    <span class="terminal-prompt">₽</span>
+                    <span class="text-bright">СРО_ТЕРМ_v3</span>
+                </div>
+                
+                <div class="flex items-center gap-4 text-muted">
+                    <div class="flex items-center gap-2">
+                        <span>КЛЮЧ_СТАВКА:</span>
+                        <input type="number" value="16.0" class="term-input" id="key-rate" onchange="recalculateAll()" style="background: rgba(255,255,255,0.1); color: white; border-color: #334155; width: 60px;">
+                        <span>%</span>
+                    </div>
+                    
+                    <div class="flex items-center gap-2">
+                        <span>УДОР_МАТ:</span>
+                        <input type="number" value="5.2" class="term-input" id="mat-inflation" onchange="recalculateAll()" style="background: rgba(255,255,255,0.1); color: white; border-color: #334155; width: 60px;">
+                        <span>%</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-6 text-muted">
+                <div>
+                    <span class="text-muted" style="font-size: 9px;">СЧЁТ:</span>
+                    <span class="text-success font-bold" style="font-size: 11px;">58.3 M ₽</span>
+                </div>
+                <div>
+                    <span class="text-muted" style="font-size: 9px;">ПЛАТЕЖИ:</span>
+                    <span class="text-error font-bold" style="font-size: 11px;">22.1 M ₽</span>
+                </div>
+                <div>
+                    <span class="text-muted" style="font-size: 9px;">РАЗНИЦА:</span>
+                    <span class="text-success font-bold" style="font-size: 11px;">+36.2 M ₽</span>
+                </div>
+                <div>
+                    <span class="text-muted" style="font-size: 9px;">RUNWAY:</span>
+                    <span class="text-warning font-bold" style="font-size: 11px;">4.2</span>
+                    <span class="text-muted" style="font-size: 9px;">мес</span>
+                </div>
+                <div>
+                    <span class="text-muted" style="font-size: 9px;">КРЕДИТ:</span>
+                    <span class="text-info" style="font-size: 11px;">45 M ₽</span>
+                </div>
+                <div>
+                    <span class="text-muted">СИСТЕМА:</span>
+                    <span class="text-success blink">КОНТРОЛЬ ●</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- AGENT SIDEBAR -->
+        <div class="agent-sidebar">
+            <div class="agent-header">
+                <div class="agent-avatar">A</div>
+                <span>АГЕНТ</span>
+            </div>
+            
+            <div class="agent-messages" id="agent-messages">
+                <!-- Agent messages will be populated -->
+            </div>
+            
+            <div class="agent-actions">
+                <button class="agent-action-btn" onclick="optimizePayments()" id="optimize-btn">ОПТИМИЗИРОВАТЬ_ПЛАТЕЖИ</button>
+                <button class="agent-action-btn" onclick="predictCashGap()" id="predict-btn">АНАЛИЗ_КАССОВОГО_РАЗРЫВА</button>
+                <button class="agent-action-btn" onclick="suggestCollection()" id="collect-btn">ИНКАССАЦИЯ_ДЕБИТОРКИ</button>
+                <button class="agent-action-btn" onclick="generateReport()" id="report-btn">СФОРМИРОВАТЬ_ОТЧЕТ</button>
+            </div>
+        </div>
+
+        <!-- MAIN AREA -->
+        <div class="main-area">
+            <div class="table-tabs">
+                <div class="table-tab active" onclick="switchTab('payment')">ОЧЕРЕДЬ_ПЛАТЕЖЕЙ</div>
+                <div class="table-tab" onclick="switchTab('projects')">ПРОЕКТЫ</div>
+                <div class="table-tab" onclick="switchTab('ks')">КС-2/КС-3</div>
+                <div class="table-tab" onclick="switchTab('dashboard')">МОНИТОРИНГ</div>
+            </div>
+            
+            <div class="tabs-container">
+            <!-- Payment Queue Tab -->
+            <div id="payment-content" class="tab-content active">
+                <table class="dense-table" id="payment-table">
+                    <thead>
+                        <tr>
+                            <th>✓</th>
+                            <th>ПРОЕКТ / ОБЪЕКТ</th>
+                            <th>КОНТРАГЕНТ / НАЗНАЧЕНИЕ</th>
+                            <th>БЮДЖЕТ</th>
+                            <th>ФАКТ</th>
+                            <th style="color: var(--terminal-ok)">ПРИХОД</th>
+                            <th style="color: var(--terminal-error)">ВЫПЛАТЫ</th>
+                            <th style="border-left: 2px solid var(--terminal-info)">ЗАПРОС</th>
+                            <th>СРОК</th>
+                            <th>СТАТУС</th>
+                            <th>РИСК</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Table rows will be populated -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Projects Tab -->
+            <div id="projects-content" class="tab-content">
+                <table class="dense-table">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left;">ПРОЕКТ</th>
+                            <th>БЮДЖЕТ</th>
+                            <th>ВЫПОЛНЕНО</th>
+                            <th>%</th>
+                            <th>РАСХОД</th>
+                            <th>ОСТАТОК</th>
+                            <th>МАРЖА_%</th>
+                            <th>СТАТУС</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="text-align: left;"><strong>ЖК_СЕВЕРНЫЙ</strong></td>
+                            <td style="text-align: right;">245.8 M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">187.2</span> M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">76</span>%</td>
+                            <td style="text-align: right;"><span class="dynamic-number">178.4</span> M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">67.4</span> M</td>
+                            <td style="text-align: right; color: var(--terminal-ok);"><span class="dynamic-number">8.9</span>%</td>
+                            <td><span class="badge badge-success">В_ПЛАНЕ</span></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>ТЦ_ПЛАЗА</strong></td>
+                            <td style="text-align: right;">128.5 M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">89.3</span> M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">69</span>%</td>
+                            <td style="text-align: right;"><span class="dynamic-number">87.1</span> M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">41.4</span> M</td>
+                            <td style="text-align: right; color: var(--terminal-ok);"><span class="dynamic-number">2.2</span>%</td>
+                            <td><span class="badge badge-warning">ЗАДЕРЖКА_3Д</span></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>ГОС_КОНТРАКТ_245</strong></td>
+                            <td style="text-align: right;">89.0 M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">45.8</span> M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">51</span>%</td>
+                            <td style="text-align: right;"><span class="dynamic-number">42.3</span> M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">46.7</span> M</td>
+                            <td style="text-align: right; color: var(--terminal-ok);"><span class="dynamic-number">3.5</span>%</td>
+                            <td><span class="badge badge-success">В_ПЛАНЕ</span></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>РЕКОНСТРУКЦИЯ_МОСТА</strong></td>
+                            <td style="text-align: right;">156.2 M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">98.7</span> M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">63</span>%</td>
+                            <td style="text-align: right;"><span class="dynamic-number">95.8</span> M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">60.4</span> M</td>
+                            <td style="text-align: right; color: var(--terminal-ok);"><span class="dynamic-number">2.9</span>%</td>
+                            <td><span class="badge badge-success">В_ПЛАНЕ</span></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>ОФИС_МОСКВА_СИТИ</strong></td>
+                            <td style="text-align: right;">78.3 M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">12.5</span> M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">16</span>%</td>
+                            <td style="text-align: right;"><span class="dynamic-number">11.8</span> M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">66.5</span> M</td>
+                            <td style="text-align: right; color: var(--terminal-ok);"><span class="dynamic-number">0.7</span>%</td>
+                            <td><span class="badge badge-info">СТАРТ</span></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>СКЛАДСКОЙ_КОМПЛЕКС</strong></td>
+                            <td style="text-align: right;">195.0 M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">156.0</span> M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">80</span>%</td>
+                            <td style="text-align: right;"><span class="dynamic-number">148.2</span> M</td>
+                            <td style="text-align: right;"><span class="dynamic-number">46.8</span> M</td>
+                            <td style="text-align: right; color: var(--terminal-ok);"><span class="dynamic-number">7.8</span>%</td>
+                            <td><span class="badge badge-success">В_ПЛАНЕ</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- KS-2/KS-3 Tab -->
+            <div id="ks-content" class="tab-content">
+                <table class="dense-table">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left;">ДОКУМЕНТ</th>
+                            <th style="text-align: left;">ПРОЕКТ</th>
+                            <th>СУММА</th>
+                            <th>ДАТА</th>
+                            <th>ПРОСРОЧКА</th>
+                            <th>СТАТУС</th>
+                            <th>ДЕЙСТВИЕ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="text-align: left;"><strong>КС-2-045/24</strong></td>
+                            <td style="text-align: left;">ЖК_СЕВЕРНЫЙ</td>
+                            <td style="text-align: right;"><span class="dynamic-number">8.5</span> M</td>
+                            <td style="text-align: right;">25.11.24</td>
+                            <td style="text-align: right; color: var(--terminal-warning);">12 дн</td>
+                            <td><span class="badge badge-warning">ОЖИДАЕТ</span></td>
+                            <td><button class="btn btn-sm">Звонить</button></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>КС-3-128/24</strong></td>
+                            <td style="text-align: left;">ТЦ_ПЛАЗА</td>
+                            <td style="text-align: right;"><span class="dynamic-number">12.2</span> M</td>
+                            <td style="text-align: right;">25.11.24</td>
+                            <td style="text-align: right; color: var(--terminal-ok);">0 дн</td>
+                            <td><span class="badge badge-success">ПОДПИСАН</span></td>
+                            <td><button class="btn btn-sm">Платёж</button></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>КС-2-089/24</strong></td>
+                            <td style="text-align: left;">ГОС_245</td>
+                            <td style="text-align: right;"><span class="dynamic-number">15.8</span> M</td>
+                            <td style="text-align: right;">10.11.24</td>
+                            <td style="text-align: right; color: var(--terminal-error);">22 дн</td>
+                            <td><span class="badge badge-error">ПРОСРОЧЕН</span></td>
+                            <td><button class="btn btn-sm">Претензия</button></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>КС-3-067/24</strong></td>
+                            <td style="text-align: left;">МОСТ</td>
+                            <td style="text-align: right;"><span class="dynamic-number">22.5</span> M</td>
+                            <td style="text-align: right;">18.11.24</td>
+                            <td style="text-align: right; color: var(--terminal-warning);">14 дн</td>
+                            <td><span class="badge badge-warning">ИСПРАВЛЕНИЕ</span></td>
+                            <td><button class="btn btn-sm">Контроль</button></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>КС-2-112/24</strong></td>
+                            <td style="text-align: left;">ЖК_СЕВЕРНЫЙ</td>
+                            <td style="text-align: right;"><span class="dynamic-number">5.3</span> M</td>
+                            <td style="text-align: right;">28.11.24</td>
+                            <td style="text-align: right; color: var(--terminal-ok);">4 дн</td>
+                            <td><span class="badge badge-info">ОТПРАВЛЕН</span></td>
+                            <td><button class="btn btn-sm">Ожидать</button></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>КС-2-134/24</strong></td>
+                            <td style="text-align: left;">СКЛАД</td>
+                            <td style="text-align: right;"><span class="dynamic-number">18.9</span> M</td>
+                            <td style="text-align: right;">01.12.24</td>
+                            <td style="text-align: right; color: var(--terminal-ok);">1 дн</td>
+                            <td><span class="badge badge-info">НОВЫЙ</span></td>
+                            <td><button class="btn btn-sm">Проверка</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Monitoring Tab -->
+            <div id="dashboard-content" class="tab-content">
+                <table class="dense-table">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left;">МЕТРИКА</th>
+                            <th>ТЕКУЩЕЕ</th>
+                            <th>ПРОГНОЗ</th>
+                            <th>ИЗМЕНЕНИЕ</th>
+                            <th>СТАТУС</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="text-align: left;"><strong>КАССА</strong></td>
+                            <td style="text-align: right;"><span class="dynamic-number">58.3</span> M ₽</td>
+                            <td style="text-align: right;"><span class="dynamic-number">62.1</span> M ₽</td>
+                            <td style="text-align: right; color: var(--terminal-ok);">+6.5%</td>
+                            <td><span class="badge badge-success">OK</span></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>ДЕБИТОРКА</strong></td>
+                            <td style="text-align: right;"><span class="dynamic-number">89.0</span> M ₽</td>
+                            <td style="text-align: right;"><span class="dynamic-number">75.2</span> M ₽</td>
+                            <td style="text-align: right; color: var(--terminal-ok);">-15.5%</td>
+                            <td><span class="badge badge-success">СНИЖАЕТСЯ</span></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>КРЕДИТОРКА</strong></td>
+                            <td style="text-align: right;"><span class="dynamic-number">38.7</span> M ₽</td>
+                            <td style="text-align: right;"><span class="dynamic-number">42.3</span> M ₽</td>
+                            <td style="text-align: right; color: var(--terminal-warning);">+9.3%</td>
+                            <td><span class="badge badge-warning">РОСТ</span></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>ОБОРОТ_МЕСЯЦ</strong></td>
+                            <td style="text-align: right;"><span class="dynamic-number">156.8</span> M ₽</td>
+                            <td style="text-align: right;"><span class="dynamic-number">162.3</span> M ₽</td>
+                            <td style="text-align: right; color: var(--terminal-ok);">+3.5%</td>
+                            <td><span class="badge badge-success">В_ПЛАНЕ</span></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>МАРЖА</strong></td>
+                            <td style="text-align: right;"><span class="dynamic-number">18.2</span>%</td>
+                            <td style="text-align: right;"><span class="dynamic-number">19.5</span>%</td>
+                            <td style="text-align: right; color: var(--terminal-ok);">+1.3%</td>
+                            <td><span class="badge badge-success">РОСТ</span></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: left;"><strong>RUNWAY</strong></td>
+                            <td style="text-align: right;"><span class="dynamic-number">4.2</span> мес</td>
+                            <td style="text-align: right;"><span class="dynamic-number">4.8</span> мес</td>
+                            <td style="text-align: right; color: var(--terminal-ok);">+14.3%</td>
+                            <td><span class="badge badge-success">УЛУЧШЕНИЕ</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            </div>
+            
+            <!-- Real-time Terminal -->
+            <div class="terminal-wrapper">
+                <div class="terminal-header">ОПЕРАЦИОННЫЙ_ТЕРМИНАЛ | LIVE</div>
+                <div class="live-terminal" id="live-terminal">
+                    <!-- Terminal output -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ANALYSIS PANEL -->
+        <div class="analysis-panel">
+            <div class="controls-area">
+                <div class="text-muted uppercase font-bold mb-4">СЦЕНАРНЫЙ_АНАЛИЗ</div>
+                
+                <div class="bg-surface-light p-3 border border-border rounded mb-4">
+                    <div class="text-muted uppercase font-bold mb-2" style="font-size: 9px;">ЧТО_ЕСЛИ:</div>
+                    
+                    <div class="mb-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-muted" style="font-size: 9px;">Задержка_платежа_(дн):</span>
+                            <input type="number" value="0" min="0" max="90" id="sc-delay" onchange="runScenario()" style="width: 50px; font-size: 9px; padding: 2px; text-align: right;" class="term-input">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-muted" style="font-size: 9px;">Доп_расходы_(%):</span>
+                            <input type="number" value="0" min="0" max="50" step="5" id="sc-costs" onchange="runScenario()" style="width: 50px; font-size: 9px; padding: 2px; text-align: right;" class="term-input">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-muted" style="font-size: 9px;">Потеря_дохода_(%):</span>
+                            <input type="number" value="0" min="0" max="100" step="10" id="sc-income" onchange="runScenario()" style="width: 50px; font-size: 9px; padding: 2px; text-align: right;" class="term-input">
+                        </div>
+                    </div>
+                    
+                    <div style="border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px;">
+                        <div class="flex justify-between mb-2">
+                            <span class="text-muted">Выбрано к оплате:</span>
+                            <span class="text-info font-bold dynamic-number" id="total-selected">4.7 M</span>
+                        </div>
+                        <div class="flex justify-between mb-2">
+                            <span class="text-muted">Текущий остаток:</span>
+                            <span class="text-success font-bold dynamic-number" id="current-cash">12.6 M</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar" id="cash-progress" style="background: var(--terminal-ok);"></div>
+                        </div>
+                        <div class="flex justify-between items-center mt-3">
+                            <span class="font-bold">ПРОГНОЗ_(СЦЕНАРИЙ):</span>
+                            <span class="text-2xl font-bold dynamic-number" id="forecast-cash">7.8 M</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary w-full mb-2" onclick="commitPayments()">
+                    ₽ УТВЕРДИТЬ_РЕЕСТР
+                </button>
+                
+                <div id="alert-box" class="hidden p-2 text-center text-xs font-bold rounded border" style="background: rgba(239, 68, 68, 0.1); border-color: var(--terminal-error); color: var(--terminal-error);">
+                    ⚠ ОБНАРУЖЕН_КАССОВЫЙ_РАЗРЫВ
+                </div>
+            </div>
+            
+            <div class="chart-area">
+                <div class="text-muted uppercase font-bold absolute top-2 left-4">ЛИКВИДНОСТЬ_(СЦЕНАРИЙ)</div>
+                <div class="chart-container">
+                    <canvas id="liquidityChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Core Data
+        const projectsData = [
+            { 
+                id: 1, 
+                proj: "ЖК 'СЕВЕРНЫЙ'", 
+                agent: "ООО 'Бетон-Сервис'", 
+                desc: "Бетонирование эт.4",
+                budget: 15.0, 
+                actual: 12.5, 
+                incoming: 2.0, 
+                outgoing: 1.0, 
+                request: 8.5, 
+                due: "СЕГОДНЯ", 
+                type: "sub",
+                status: "pending",
+                risk: "medium",
+                b2b_gap: false
+            },
+            { 
+                id: 2, 
+                proj: "ЖК 'СЕВЕРНЫЙ'", 
+                agent: "ООО 'Металл-Трейд'", 
+                desc: "Арматура А500С",
+                budget: 40.0, 
+                actual: 38.0, 
+                incoming: 35.0, 
+                outgoing: 25.0, 
+                request: 4.5, 
+                due: "ЗАВТРА", 
+                type: "mat",
+                status: "approved",
+                risk: "low",
+                b2b_gap: false
+            },
+            { 
+                id: 3, 
+                proj: "ФИС / АУП", 
+                agent: "ВТБ (ПАО)", 
+                desc: "Проценты по кредиту",
+                budget: 12.0, 
+                actual: 12.0, 
+                incoming: 0.0, 
+                outgoing: 0.0, 
+                request: 1.2, 
+                due: "Сегодня", 
+                type: "bank",
+                status: "critical",
+                risk: "high",
+                b2b_gap: false
+            },
+            { 
+                id: 4, 
+                proj: "ТЦ 'ПЛАЗА'", 
+                agent: "ИП Иванов (Вент)", 
+                desc: "Монтаж вентиляции",
+                budget: 5.0, 
+                actual: 2.0, 
+                incoming: 0.0, 
+                outgoing: 0.0, 
+                request: 1.2, 
+                due: "12.12", 
+                type: "sub",
+                status: "pending",
+                risk: "medium",
+                b2b_gap: true
+            },
+            { 
+                id: 5, 
+                proj: "НАЛОГИ", 
+                agent: "ФНС РОССИИ", 
+                desc: "НДС 3 кв.",
+                budget: 18.0, 
+                actual: 18.0, 
+                incoming: 0.0, 
+                outgoing: 12.0, 
+                request: 3.5, 
+                due: "25.12", 
+                type: "tax",
+                status: "critical",
+                risk: "high",
+                b2b_gap: false
+            },
+            { 
+                id: 6, 
+                proj: "ГОС_КОНТРАКТ", 
+                agent: "ООО 'Строй-М'", 
+                desc: "Субподряд стены",
+                budget: 55.0, 
+                actual: 10.0, 
+                incoming: 5.0, 
+                outgoing: 0.0, 
+                request: 8.0, 
+                due: "30.12", 
+                type: "sub",
+                status: "approved",
+                risk: "low",
+                b2b_gap: false
+            },
+            { 
+                id: 7, 
+                proj: "СКЛАД_ЛОГИСТИКА", 
+                agent: "ООО 'МеталлСтрой'", 
+                desc: "Металлоконструкции",
+                budget: 89.0, 
+                actual: 67.0, 
+                incoming: 55.0, 
+                outgoing: 45.0, 
+                request: 12.5, 
+                due: "ЗАВТРА", 
+                type: "mat",
+                status: "pending",
+                risk: "medium",
+                b2b_gap: false
+            },
+            { 
+                id: 8, 
+                proj: "ЖК_ЮЖНЫЙ", 
+                agent: "ООО 'СтройТех'", 
+                desc: "Фасадные работы",
+                budget: 125.0, 
+                actual: 78.0, 
+                incoming: 65.0, 
+                outgoing: 50.0, 
+                request: 18.5, 
+                due: "15.12", 
+                type: "sub",
+                status: "approved",
+                risk: "low",
+                b2b_gap: false
+            },
+            { 
+                id: 9, 
+                proj: "ОФИС_СИТИ", 
+                agent: "ИП Петров", 
+                desc: "Электромонтаж",
+                budget: 34.0, 
+                actual: 22.0, 
+                incoming: 18.0, 
+                outgoing: 15.0, 
+                request: 6.8, 
+                due: "СЕГОДНЯ", 
+                type: "sub",
+                status: "pending",
+                risk: "medium",
+                b2b_gap: false
+            },
+            { 
+                id: 10, 
+                proj: "ТЦ_АТРИУМ", 
+                agent: "ООО 'КлиматТех'", 
+                desc: "Кондиционирование",
+                budget: 67.0, 
+                actual: 45.0, 
+                incoming: 38.0, 
+                outgoing: 28.0, 
+                request: 15.2, 
+                due: "20.12", 
+                type: "sub",
+                status: "approved",
+                risk: "low",
+                b2b_gap: false
+            },
+            { 
+                id: 11, 
+                proj: "МОСТ_РЕКОНСТРУКЦИЯ", 
+                agent: "ООО 'ДорСтрой'", 
+                desc: "Асфальтирование",
+                budget: 156.0, 
+                actual: 98.0, 
+                incoming: 85.0, 
+                outgoing: 70.0, 
+                request: 22.5, 
+                due: "25.12", 
+                type: "mat",
+                status: "approved",
+                risk: "low",
+                b2b_gap: false
+            },
+            { 
+                id: 12, 
+                proj: "ШКОЛА_45", 
+                agent: "ООО 'ОкнаПласт'", 
+                desc: "Остекление",
+                budget: 28.0, 
+                actual: 15.0, 
+                incoming: 12.0, 
+                outgoing: 8.0, 
+                request: 5.5, 
+                due: "ЗАВТРА", 
+                type: "sub",
+                status: "pending",
+                risk: "medium",
+                b2b_gap: false
+            },
+            { 
+                id: 13, 
+                proj: "ПАРК_РАЗВЛЕЧЕНИЙ", 
+                agent: "ООО 'Ландшафт+'", 
+                desc: "Благоустройство",
+                budget: 78.0, 
+                actual: 45.0, 
+                incoming: 38.0, 
+                outgoing: 30.0, 
+                request: 12.8, 
+                due: "28.12", 
+                type: "sub",
+                status: "approved",
+                risk: "low",
+                b2b_gap: false
+            },
+            { 
+                id: 14, 
+                proj: "ЗАВОД_РЕКОНСТРУКЦИЯ", 
+                agent: "ООО 'ПромСтрой'", 
+                desc: "Демонтаж старых цехов",
+                budget: 234.0, 
+                actual: 156.0, 
+                incoming: 125.0, 
+                outgoing: 98.0, 
+                request: 38.5, 
+                due: "СЕГОДНЯ", 
+                type: "sub",
+                status: "critical",
+                risk: "high",
+                b2b_gap: false
+            }
+        ];
+
+        // System State
+        let selectedIds = new Set([3, 5]);
+        let currentCash = 12.6;
+        let creditLimit = 45.0;
+        let chartInstance = null;
+        let terminalLog = [];
+        let agentMessages = [];
+
+        // Agent Messages Queue
+        const agentMessagePool = [
+            { type: "system", text: "Проверка кассовых разрывов завершена. Критических отклонений нет" },
+            { type: "system", text: "Получены обновления по ценам материалов от поставщиков" },
+            { type: "info", text: "Направлены напоминания 3 контрагентам о просроченных платежах" },
+            { type: "info", text: "Входящие платежи на 15% выше среднего за последнюю неделю" },
+            { type: "critical", text: "Обнаружен разрыв Б2Б в проекте ТЦ 'ПЛАЗА'. Требуется ручная проверка" },
+            { type: "system", text: "Автоматически сформирован ежедневный отчет по ликвидности" },
+            { type: "system", text: "Все обязательные платежи запланированы к исполнению" },
+            { type: "system", text: "Данные банковских выписок обновлены" },
+            { type: "info", text: "Проверка дебиторской задолженности: 5 контрагентов в просрочке" },
+            { type: "warning", text: "Анализ расходов: превышение бюджета по проекту ЖК 'СЕВЕРНЫЙ' на 8%" }
+        ];
+
+        // Terminal Messages
+        const terminalMessages = [
+            "[21:56:01] СИСТЕМА: СРО_ТЕРМ_v3 инициализирован",
+            "[21:56:05] БАНКИ: Подключение к ВТБ, Сбербанк, Альфа-Банк установлено",
+            "[21:56:15] МОДЕЛЬ: Загружена система оценки рисков",
+            "[21:56:30] КАССА: Запущен мониторинг в реальном времени",
+            "[21:57:00] ОБНОВЛЕНИЕ: Получены актуальные цены на материалы",
+            "[21:57:15] ПРОВЕРКА: Обнаружено 2 критических платежа"
+        ];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initTerminal();
+            renderTable();
+            updateAnalysis();
+            startLiveUpdates();
+            initAgent();
+            startDynamicUpdates();
+            initMobileAgent();
+        });
+        
+        // Мобильное меню агента
+        function initMobileAgent() {
+            if (window.innerWidth <= 768) {
+                const agentBtn = document.querySelector('body::after');
+                const agentSidebar = document.querySelector('.agent-sidebar');
+                
+                // Клик на кнопку агента
+                document.addEventListener('click', (e) => {
+                    const rect = e.target.getBoundingClientRect();
+                    // Проверяем клик в область кнопки (left: 8px, top: 90px)
+                    if (e.clientX < 100 && e.clientY > 80 && e.clientY < 130) {
+                        agentSidebar.classList.add('mobile-open');
+                        document.body.classList.add('agent-open');
+                    }
+                    // Клик вне агента — закрываем
+                    else if (!agentSidebar.contains(e.target) && agentSidebar.classList.contains('mobile-open')) {
+                        agentSidebar.classList.remove('mobile-open');
+                        document.body.classList.remove('agent-open');
+                    }
+                });
+            }
+        }
+
+        function initTerminal() {
+            const terminal = document.getElementById('live-terminal');
+            terminalMessages.forEach(msg => {
+                addTerminalLine(msg);
+            });
+        }
+
+        function addTerminalLine(message) {
+            const terminal = document.getElementById('live-terminal');
+            const line = document.createElement('div');
+            line.className = 'terminal-line';
+            line.innerHTML = message;
+            
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+            
+            if (terminal.children.length > 15) {
+                terminal.removeChild(terminal.firstChild);
+            }
+        }
+
+        function initAgent() {
+            const agentContainer = document.getElementById('agent-messages');
+            
+            agentMessagePool.slice(0, 3).forEach(msg => {
+                addAgentMessage(msg.text, msg.type);
+            });
+        }
+
+        function addAgentMessage(text, type = "system") {
+            const agentContainer = document.getElementById('agent-messages');
+            const message = document.createElement('div');
+            message.className = `agent-message ${type} updating`;
+            
+            const timestamp = new Date().toLocaleTimeString('ru-RU', {hour12: false}).substring(0,5);
+            
+            message.innerHTML = `
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-bright font-bold">${timestamp}</span>
+                    <span class="text-muted">|</span>
+                    <span class="${type === 'critical' ? 'text-error' : type === 'warning' ? 'text-warning' : type === 'info' ? 'text-info' : 'text-muted'}">
+                        ${type === 'critical' ? 'КРИТИЧЕСКОЕ' : type === 'warning' ? 'ПРЕДУПРЕЖДЕНИЕ' : 'СИСТЕМА'}
+                    </span>
+                </div>
+                <div>${text}</div>
+            `;
+            
+            agentContainer.insertBefore(message, agentContainer.firstChild);
+            
+            setTimeout(() => {
+                message.classList.remove('updating');
+            }, 4000);
+            
+            if (agentContainer.children.length > 5) {
+                agentContainer.removeChild(agentContainer.lastChild);
+            }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+            
+            const inflation = parseFloat(document.getElementById('mat-inflation').value) / 100;
+            const keyRate = parseFloat(document.getElementById('key-rate').value) / 100;
+            
+            projectsData.forEach(row => {
+                let stressedRequest = row.request;
+                if (row.type === 'mat') {
+                    stressedRequest = row.request * (1 + inflation);
+                }
+                if (row.type === 'bank') {
+                    stressedRequest = row.request * (1 + keyRate/12);
+                }
+                
+                const b2bGap = (row.outgoing + stressedRequest) - row.incoming;
+                const hasGap = b2bGap > 0.1 && row.type === 'sub';
+                
+                const isSelected = selectedIds.has(row.id);
+                const isMandatory = row.type === 'bank' || row.type === 'tax';
+                
+                let riskBadge = `<span class="badge badge-success">НИЗКИЙ</span>`;
+                if (row.risk === 'high') riskBadge = `<span class="badge badge-error">ВЫСОКИЙ</span>`;
+                if (row.risk === 'medium') riskBadge = `<span class="badge badge-warning">СРЕДНИЙ</span>`;
+                if (hasGap) riskBadge = `<span class="badge badge-error">РАЗРЫВ ${b2bGap.toFixed(1)}M</span>`;
+                
+                let statusIndicator = '<span class="status-dot status-ok"></span>ОК';
+                if (row.status === 'critical') statusIndicator = '<span class="status-dot status-critical blink"></span>КРИТИЧ';
+                if (row.status === 'pending') statusIndicator = '<span class="status-dot status-warning"></span>ОЖИД';
+                
+                const tr = document.createElement('tr');
+                if (isSelected) tr.classList.add('selected');
+                
+                tr.innerHTML = `
+                    <td style="text-align:center">
+                        <input type="checkbox" ${isSelected ? 'checked' : ''} 
+                               onchange="toggleSelection(${row.id})" 
+                               ${isMandatory ? 'disabled' : ''}
+                               style="accent-color: var(--terminal-info)">
+                    </td>
+                    <td>
+                        <div class="font-bold text-bright">${row.proj}</div>
+                        <div class="text-muted text-xs">ID: ${row.id.toString().padStart(3, '0')}</div>
+                    </td>
+                    <td>
+                        <div class="font-bold">${row.agent}</div>
+                        <div class="text-muted text-xs">${row.desc}</div>
+                    </td>
+                    <td class="text-muted">${row.budget.toFixed(1)}</td>
+                    <td class="font-bold">${row.actual.toFixed(1)}</td>
+                    <td class="text-success font-bold">+${row.incoming.toFixed(1)}</td>
+                    <td class="text-error">-${row.outgoing.toFixed(1)}</td>
+                    <td style="border-left: 2px solid var(--terminal-info); background: rgba(100, 116, 139, 0.03)" 
+                        class="font-bold ${row.type === 'mat' ? 'text-warning' : 'text-info'}">
+                        ${stressedRequest.toFixed(1)}
+                    </td>
+                    <td>
+                        <span class="${row.due === 'Сегодня' || row.due === 'СЕГОДНЯ' ? 'text-error blink' : 'text-muted'}">
+                            ${row.due}
+                        </span>
+                    </td>
+                    <td>${statusIndicator}</td>
+                    <td>${riskBadge}</td>
+                `;
+                
+                tbody.appendChild(tr);
+            });
+        }
+
+        function toggleSelection(id) {
+            if (selectedIds.has(id)) {
+                selectedIds.delete(id);
+            } else {
+                selectedIds.add(id);
+            }
+            
+            const item = projectsData.find(p => p.id === id);
+            if ((item.type === 'bank' || item.type === 'tax') && !selectedIds.has(id)) {
+                selectedIds.add(id);
+            }
+            
+            renderTable();
+            updateAnalysis();
+            
+            addTerminalLine(`[${new Date().toLocaleTimeString('ru-RU', {hour12: false}).substring(0,8)}] ВЫБОР: Платеж #${id} ${selectedIds.has(id) ? 'добавлен' : 'удален'}`);
+        }
+
+        function recalculateAll() {
+            renderTable();
+            updateAnalysis();
+            
+            addTerminalLine(`[${new Date().toLocaleTimeString('ru-RU', {hour12: false}).substring(0,8)}] ПАРАМЕТРЫ: Ключевая ставка=${document.getElementById('key-rate').value}%, Удорожание мат.=${document.getElementById('mat-inflation').value}%`);
+        }
+
+        function updateAnalysis() {
+            let totalSelected = 0;
+            const inflation = parseFloat(document.getElementById('mat-inflation').value) / 100;
+            const keyRate = parseFloat(document.getElementById('key-rate').value) / 100;
+            
+            projectsData.forEach(row => {
+                if (selectedIds.has(row.id)) {
+                    let amount = row.request;
+                    if (row.type === 'mat') amount *= (1 + inflation);
+                    if (row.type === 'bank') amount *= (1 + keyRate/12);
+                    totalSelected += amount;
+                }
+            });
+            
+            document.getElementById('total-selected').textContent = totalSelected.toFixed(1) + ' M';
+            document.getElementById('current-cash').textContent = currentCash.toFixed(1) + ' M';
+            
+            const forecast = currentCash - totalSelected;
+            const forecastElement = document.getElementById('forecast-cash');
+            forecastElement.textContent = forecast.toFixed(1) + ' M';
+            
+            const progressBar = document.getElementById('cash-progress');
+            const progressPercent = Math.min(100, (currentCash / (totalSelected + currentCash)) * 100);
+            progressBar.style.width = `${progressPercent}%`;
+            
+            progressBar.style.setProperty('--progress-width', `${progressPercent}%`);
+            
+            const alertBox = document.getElementById('alert-box');
+            if (forecast < 0) {
+                forecastElement.style.color = 'var(--terminal-error)';
+                progressBar.style.background = 'var(--terminal-error)';
+                
+                if (Math.abs(forecast) > creditLimit) {
+                    alertBox.textContent = '⚡ ПРЕВЫШЕНИЕ_КРЕДИТНОГО_ЛИМИТА';
+                    alertBox.classList.remove('hidden');
+                } else {
+                    alertBox.textContent = `⚠ КАССОВЫЙ_РАЗРЫВ: Использование ${Math.abs(forecast).toFixed(1)}M кредита`;
+                    alertBox.classList.remove('hidden');
+                }
+            } else {
+                forecastElement.style.color = 'var(--terminal-ok)';
+                progressBar.style.background = 'var(--terminal-ok)';
+                alertBox.classList.add('hidden');
+            }
+            
+            updateChart(forecast);
+        }
+
+        function updateChart(forecast) {
+            const ctx = document.getElementById('liquidityChart').getContext('2d');
+            
+            const days = ['T+0', 'T+1', 'T+3', 'T+7', 'T+14', 'T+30'];
+            const data = [
+                currentCash,
+                forecast,
+                forecast + (Math.random() * 3 - 1),
+                forecast + 5 + (Math.random() * 4 - 2),
+                forecast + 8 + (Math.random() * 6 - 3),
+                forecast + 12 + (Math.random() * 8 - 4)
+            ];
+            
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+            
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: days,
+                    datasets: [{
+                        label: 'Прогноз кассы',
+                        data: data,
+                        borderColor: forecast < 0 ? 'var(--terminal-error)' : 'var(--terminal-ok)',
+                        backgroundColor: forecast < 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: forecast < 0 ? 'var(--terminal-error)' : 'var(--terminal-ok)'
+                    }, {
+                        label: 'Кредитный лимит',
+                        data: Array(days.length).fill(-creditLimit),
+                        borderColor: 'rgba(239, 68, 68, 0.3)',
+                        borderDash: [5, 5],
+                        borderWidth: 1,
+                        pointRadius: 0,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'var(--surface)',
+                            titleColor: 'var(--text-bright)',
+                            bodyColor: 'var(--text-main)',
+                            borderColor: 'var(--border)',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        y: {
+                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                            ticks: { 
+                                color: 'var(--text-dim)',
+                                font: { family: 'JetBrains Mono', size: 9 }
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { 
+                                color: 'var(--text-dim)',
+                                font: { size: 9 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function startLiveUpdates() {
+            setInterval(() => {
+                const change = (Math.random() - 0.5) * 0.1;
+                currentCash += change;
+                
+                document.getElementById('live-cash').textContent = formatCash(currentCash * 1000000);
+                document.getElementById('current-cash').textContent = currentCash.toFixed(1) + ' M';
+                
+                updateAnalysis();
+            }, 4000);
+            
+            setInterval(() => {
+                const randomMsg = agentMessagePool[Math.floor(Math.random() * agentMessagePool.length)];
+                addAgentMessage(randomMsg.text, randomMsg.type);
+                
+                addTerminalLine(`[${new Date().toLocaleTimeString('ru-RU', {hour12: false}).substring(0,8)}] ${randomMsg.type === 'critical' ? 'КРИТИЧЕСКОЕ' : randomMsg.type === 'warning' ? 'ПРЕДУПРЕЖДЕНИЕ' : 'СИСТЕМА'}: ${randomMsg.text.substring(0, 50)}...`);
+            }, 4000);
+            
+            setInterval(() => {
+                const currentInfl = parseFloat(document.getElementById('mat-inflation').value);
+                const newInfl = Math.max(4.5, Math.min(7.5, currentInfl + (Math.random() - 0.5) * 0.2));
+                document.getElementById('mat-inflation').value = newInfl.toFixed(1);
+                
+                addTerminalLine(`[${new Date().toLocaleTimeString('ru-RU', {hour12: false}).substring(0,8)}] РЫНОК: Удорожание материалов ${newInfl > currentInfl ? '↑' : '↓'} ${newInfl.toFixed(1)}%`);
+                recalculateAll();
+            }, 8000);
+        }
+
+        function startDynamicUpdates() {
+            setInterval(() => {
+                updateDynamicValues();
+            }, 4000);
+        }
+
+        function updateDynamicValues() {
+            // Обновляем динамические числа в терминалах вкладок
+            const dynamicNumbers = document.querySelectorAll('.dynamic-number');
+            dynamicNumbers.forEach(el => {
+                const currentText = el.textContent;
+                const currentVal = parseFloat(currentText);
+                if (!isNaN(currentVal)) {
+                    let newVal;
+                    
+                    if (currentText.includes('%')) {
+                        // Проценты
+                        newVal = Math.min(100, Math.max(0, currentVal + (Math.random() - 0.5) * 2));
+                        el.textContent = newVal.toFixed(0) + '%';
+                    } else {
+                        // Денежные значения
+                        const change = (Math.random() - 0.5) * 0.3;
+                        newVal = Math.max(0, currentVal + change);
+                        
+                        if (currentText.includes('.')) {
+                            el.textContent = newVal.toFixed(1);
+                        } else {
+                            el.textContent = newVal.toFixed(0);
+                        }
+                    }
+                    
+                    el.classList.add('updating');
+                    setTimeout(() => el.classList.remove('updating'), 1000);
+                }
+            });
+        }
+
+        function formatCash(amount) {
+            return amount.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+
+        // Agent Functions
+        function optimizePayments() {
+            const btn = document.getElementById('optimize-btn');
+            btn.classList.add('executing');
+            
+            setTimeout(() => {
+                const sorted = [...projectsData].sort((a, b) => {
+                    const priority = { 'tax': 0, 'bank': 1, 'sub': 2, 'mat': 3 };
+                    return priority[a.type] - priority[b.type];
+                });
+                
+                selectedIds.clear();
+                sorted.forEach(item => {
+                    if (item.type === 'tax' || item.type === 'bank') {
+                        selectedIds.add(item.id);
+                    } else if (currentCash > item.request * 2) {
+                        selectedIds.add(item.id);
+                    }
+                });
+                
+                renderTable();
+                updateAnalysis();
+                addAgentMessage("Очередь платежей оптимизирована. Налоги и банковские платежи приоритезированы.", "system");
+                btn.classList.remove('executing');
+            }, 2000);
+        }
+
+        function predictCashGap() {
+            const btn = document.getElementById('predict-btn');
+            btn.classList.add('executing');
+            
+            setTimeout(() => {
+                const totalRequests = projectsData.reduce((sum, item) => sum + item.request, 0);
+                const gapProbability = Math.min(100, Math.max(0, (totalRequests - currentCash) / creditLimit * 100));
+                
+                addAgentMessage(`Вероятность кассового разрыва: ${gapProbability.toFixed(1)}%. Уровень риска: ${gapProbability > 70 ? 'ВЫСОКИЙ' : gapProbability > 40 ? 'СРЕДНИЙ' : 'НИЗКИЙ'}`, 
+                            gapProbability > 70 ? "critical" : "warning");
+                btn.classList.remove('executing');
+            }, 2000);
+        }
+
+        function suggestCollection() {
+            const btn = document.getElementById('collect-btn');
+            btn.classList.add('executing');
+            
+            setTimeout(() => {
+                const overdueDebtors = projectsData.filter(p => 
+                    p.incoming > 0 && (p.type === 'sub' || p.type === 'mat') && 
+                    new Date().getDate() > 15
+                );
+                
+                const totalOverdue = overdueDebtors.reduce((sum, p) => sum + p.incoming, 0);
+                
+                addAgentMessage(`Инкассация дебиторки: ${overdueDebtors.length} контрагентов, ${totalOverdue.toFixed(1)}M всего. Приоритет: ${overdueDebtors.slice(0, 2).map(d => d.agent).join(', ')}`, 
+                            totalOverdue > 10 ? "warning" : "info");
+                btn.classList.remove('executing');
+            }, 2000);
+        }
+
+        function generateReport() {
+            const btn = document.getElementById('report-btn');
+            btn.classList.add('executing');
+            
+            setTimeout(() => {
+                const now = new Date();
+                const reportTime = now.toLocaleTimeString('ru-RU', {hour12: false});
+                
+                addAgentMessage(`Отчет сформирован в ${reportTime}. Метрики: Касса=${currentCash.toFixed(1)}M, Платежи=${selectedIds.size}, Прогноз=${(currentCash - Array.from(selectedIds).reduce((sum, id) => sum + projectsData.find(p => p.id === id).request, 0)).toFixed(1)}M`, "info");
+                
+                addTerminalLine(`[${reportTime.substring(0,8)}] ОТЧЕТ: Сформирован оперативный отчет.`);
+                btn.classList.remove('executing');
+            }, 2000);
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.table-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`${tabName}-content`).classList.add('active');
+            
+            addTerminalLine(`[${new Date().toLocaleTimeString('ru-RU', {hour12: false}).substring(0,8)}] НАВИГАЦИЯ: Переключено на ${tabName.toUpperCase()}`);
+        }
+
+        function commitPayments() {
+            const total = Array.from(selectedIds).reduce((sum, id) => {
+                const item = projectsData.find(p => p.id === id);
+                return sum + (item ? item.request : 0);
+            }, 0);
+            
+            currentCash -= total;
+            
+            addTerminalLine(`[${new Date().toLocaleTimeString('ru-RU', {hour12: false}).substring(0,8)}] ТРАНЗАКЦИЯ: ${total.toFixed(1)}M платежей отправлено в банк`);
+            
+            selectedIds.clear();
+            projectsData.forEach(item => {
+                if (item.type === 'bank' || item.type === 'tax') {
+                    selectedIds.add(item.id);
+                }
+            });
+            
+            renderTable();
+            updateAnalysis();
+            
+            alert(`Реестр платежей утвержден. ${total.toFixed(1)}M переведено.`);
+        }
+
+        function runScenario() {
+            const delay = parseInt(document.getElementById('sc-delay').value) || 0;
+            const costs = parseInt(document.getElementById('sc-costs').value) || 0;
+            const income = parseInt(document.getElementById('sc-income').value) || 0;
+            
+            const baseCash = 12.6;
+            const basePayments = 4.7;
+            
+            const newCash = baseCash * (1 - income / 100);
+            const newPayments = basePayments * (1 + costs / 100);
+            const penalty = delay * 0.05;
+            
+            const forecast = newCash - newPayments - penalty;
+            
+            const el = document.getElementById('forecast-cash');
+            el.textContent = forecast.toFixed(1) + ' M';
+            el.style.color = forecast < 0 ? 'var(--terminal-error)' : forecast < 3 ? 'var(--terminal-warning)' : 'var(--terminal-ok)';
+            
+            document.getElementById('alert-box').classList.toggle('hidden', forecast >= 0);
+            
+            if (delay > 0 || costs > 0 || income > 0) {
+                addTerminalLine(`[${new Date().toLocaleTimeString('ru-RU', {hour12: false}).substring(0,8)}] СЦЕНАРИЙ: Задержка=${delay}д, Расходы=+${costs}%, Доход=-${income}% → ${forecast.toFixed(1)}M`);
+            }
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                commitPayments();
+            }
+            
+            if (e.altKey && e.key === 'o') {
+                e.preventDefault();
+                optimizePayments();
+            }
+            
+            if (e.key === 'Escape') {
+                const nonMandatory = projectsData.filter(p => p.type !== 'bank' && p.type !== 'tax').map(p => p.id);
+                nonMandatory.forEach(id => selectedIds.delete(id));
+                renderTable();
+                updateAnalysis();
+            }
+        });
+    </script>
+</body>
+</html>
